@@ -11,6 +11,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/slackhq/nebula/config"
@@ -20,7 +22,8 @@ import (
 
 type Conn struct {
 	*net.UDPConn
-	l *logrus.Logger
+	writeLock sync.Mutex
+	l         *logrus.Logger
 }
 
 func NewListener(l *logrus.Logger, ip net.IP, port int, multi bool, batch int) (*Conn, error) {
@@ -36,6 +39,10 @@ func NewListener(l *logrus.Logger, ip net.IP, port int, multi bool, batch int) (
 }
 
 func (uc *Conn) WriteTo(b []byte, addr *Addr) error {
+	uc.writeLock.Lock()
+	defer uc.writeLock.Unlock()
+
+	uc.UDPConn.SetWriteDeadline(time.Now().Add(1 * time.Second))
 	_, err := uc.UDPConn.WriteToUDP(b, &net.UDPAddr{IP: addr.IP, Port: int(addr.Port)})
 	return err
 }
